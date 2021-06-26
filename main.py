@@ -173,6 +173,13 @@ def score(player, board):
         elif piece == opp: theirs += 1
     return mine - theirs
 
+def has_won(player, board):
+    if not any_legal_move(player, board) and not any_legal_move(opponent(player), board):
+        if score(player, board) > 0:
+            return True
+
+    return False
+
 # --- STRATEGIES ---
 
 def player_strategy(player, board):
@@ -204,6 +211,12 @@ def alphabeta_searcher(depth, evaluate):
 
     def strategy(player, board):
         return alphabeta(player, board, -999, 999, depth, evaluate)[1]
+    return strategy
+
+def montecarlo_searcher(sims):
+
+    def strategy(player, board):
+        return montecarlo(player, board, sims)
     return strategy
 
 # --- EVALUATION METHODS ---
@@ -279,6 +292,101 @@ def alphabeta(player, board, alpha, beta, depth, evaluate):
 
     return alpha, best_move
 
+def mc(p, board, numSims):
+    evaluations = {}
+
+    for generation in range(numSims):
+        player = p
+        boardCopy = list(board)
+
+        simulationMoves = []
+        nextMoves = legal_moves(player, boardCopy)
+
+        score = 64
+
+        while nextMoves:
+            boardCopy = make_move(random.choice(nextMoves), player, boardCopy)
+
+            simulationMoves.append(boardCopy)
+
+            if has_won(player, boardCopy):
+                break
+
+            score -= 1
+
+            player = opponent(player)
+            nextMoves = legal_moves(player, boardCopy)
+
+        firstMove = simulationMoves[0]
+        lastMove = simulationMoves[-1]
+        firstMoveKey = repr(firstMove)
+
+        if player == opponent(p) and has_won(player, boardCopy):
+            score *= -1
+
+        if firstMoveKey in evaluations:
+            evaluations[firstMoveKey] += score
+        else:
+            evaluations[firstMoveKey] = score
+
+    best_move = []
+    highest_score = 0
+    first_round = True
+
+    for move, score in evaluations.items():
+        if first_round or score > highest_score:
+            highest_score = score
+            best_move = int(move)
+            first_round = False
+
+    return best_move
+
+def montecarlo(p, b, numSims):
+    evaluations = {}
+
+    for generation in range(numSims):
+        player = p
+        board = list(b)
+        simulation_moves = []
+
+        possible_moves = legal_moves(player, board)
+        score = 64
+
+        while possible_moves:
+            move = random.choice(possible_moves)
+            board = make_move(move, player, board)
+            simulation_moves.append(move)
+
+            if has_won(player, board):
+                break
+
+            score -= 1
+
+            player = opponent(player)
+            possible_moves = legal_moves(player, board)
+
+        first_move = simulation_moves[0]
+        key = str(first_move)
+
+        if player == opponent(p) and has_won(player, board):
+            score *= -1
+
+        if key in evaluations:
+            evaluations[key] += score
+        else:
+            evaluations[key] = score
+
+    best_move = None
+    highest_score = -999
+    for move, score in evaluations.items():
+        if score > highest_score or best_move is None:
+            highest_score = score
+            best_move = move
+
+    print(evaluations)
+    return int(best_move)
+# --------------
+
 def final_value(player, board):
     diff = score(player, board)
     if diff < 0:  # the player lost
@@ -290,7 +398,6 @@ def final_value(player, board):
 
 if __name__ == '__main__':
 
-
-    board, score = play(random_strategy, alphabeta_searcher(6, weighted_score))
+    board, score = play(alphabeta_searcher(3, weighted_score), montecarlo_searcher(400))
 
     print_board(board)
